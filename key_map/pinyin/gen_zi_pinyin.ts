@@ -18,17 +18,21 @@ function get_dict_py(filepath: string) {
 	return d;
 }
 
+function unionSet<T>(a: Iterable<T>, b: Iterable<T>) {
+	return new Set([...a, ...b]);
+}
+
 export function load_pinyin() {
 	const a = get_dict_py("../../assets/pinyin/8105.dict.yaml");
 	const b = get_dict_py("../../assets/pinyin/41448.dict.yaml");
 	const d: Record<string, Set<string>> = {};
 	for (const i in a) {
 		const l = d[i] ?? new Set();
-		d[i] = l.union(new Set(a[i]));
+		d[i] = unionSet(l, a[i]);
 	}
 	for (const i in b) {
 		const l = d[i] ?? new Set();
-		d[i] = l.union(new Set(b[i]));
+		d[i] = unionSet(l, b[i]);
 	}
 
 	return {
@@ -43,6 +47,6 @@ export function load_pinyin() {
 			}
 			return l;
 		},
-		allSymbol: new Set(Object.keys(a)).union(new Set(Object.keys(b))),
+		allSymbol: unionSet(Object.keys(a), Object.keys(b)),
 	};
 }

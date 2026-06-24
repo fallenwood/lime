@@ -1,4 +1,5 @@
-import { assertEquals } from "@std/assert";
+import { deepStrictEqual } from "node:assert/strict";
+import { test } from "node:test";
 import { generate_pinyin } from "../all_pinyin.ts";
 import {
 	generate_shuang_pinyin,
@@ -14,10 +15,10 @@ function check(shuangpinM: ShuangpinMap) {
 	for (const i of Object.values(shuangpin)) {
 		for (const p of i) as.delete(p);
 	}
-	assertEquals(as, new Set());
+	deepStrictEqual(as, new Set());
 }
 
-Deno.test("generate shuangpin", () => {
+test("generate shuangpin", () => {
 	for (const [name, map] of Object.entries(shuangpinMaps)) {
 		console.log("测试双拼方案", name);
 		check(map);

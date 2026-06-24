@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { load_pinyin } from "./key_map/pinyin/gen_zi_pinyin.ts";
@@ -14,7 +15,7 @@ const config: Config = {
 		omitContext: true,
 		afterReSort: [
 			resortFeq(
-				Deno.readTextFileSync(path.join(__dirname, "assets/hanzi/top2500.txt"))
+				readFileSync(path.join(__dirname, "assets/hanzi/top2500.txt"), "utf8")
 					.split("\n")
 					.filter((w) => w.trim()),
 				{ index: 4 },

@@ -1,26 +1,27 @@
-import { join } from "@std/path/";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 type OllamaOptions = {
 	ollamaPath?: string;
 };
 
 function getDefaultOllamaPath(): string {
-	const os = Deno.build.os;
+	const os = process.platform;
 
 	if (os === "darwin") {
-		return join(Deno.env.get("HOME") || "", ".ollama", "models");
+		return join(process.env.HOME || "", ".ollama", "models");
 	} else if (os === "linux") {
-		const userPath = join(Deno.env.get("HOME") || "", ".ollama", "models");
+		const userPath = join(process.env.HOME || "", ".ollama", "models");
 		try {
-			if (Deno.statSync(userPath)?.isDirectory) {
+			if (statSync(userPath).isDirectory()) {
 				return userPath;
 			}
 		} catch {
 			//
 		}
 		return "/usr/share/ollama/.ollama/models";
-	} else if (os === "windows") {
-		const userProfile = Deno.env.get("USERPROFILE") || "";
+	} else if (os === "win32") {
+		const userProfile = process.env.USERPROFILE || "";
 		return join(userProfile, ".ollama", "models");
 	}
 
@@ -38,16 +39,18 @@ export function listOllamaModels(op?: OllamaOptions) {
 	const basePath = op?.ollamaPath || getDefaultOllamaPath();
 	const dirs = getOllamaDir(basePath);
 	try {
-		const manifests = Deno.readDirSync(dirs.manifests);
+		const manifests = readdirSync(dirs.manifests, { withFileTypes: true });
 		const models: string[] = [];
 		for (const userNameSpace of manifests) {
-			const modelsDir = Deno.readDirSync(
+			const modelsDir = readdirSync(
 				join(dirs.manifests, userNameSpace.name),
+				{ withFileTypes: true },
 			);
 			for (const modelName of modelsDir) {
-				if (modelName.isDirectory) {
-					for (const modelXinghao of Deno.readDirSync(
+				if (modelName.isDirectory()) {
+					for (const modelXinghao of readdirSync(
 						join(dirs.manifests, userNameSpace.name, modelName.name),
+						{ withFileTypes: true },
 					)) {
 						models.push(
 							`${userNameSpace.name === "library" ? "" : `${userNameSpace.name}/`}${modelName.name}:${modelXinghao.name}`,
@@ -73,7 +76,7 @@ export function getOllamaModel(model: string, op?: OllamaOptions) {
 			: `library/${model.replace(":", "/")}`,
 	);
 	try {
-		const manifestData = JSON.parse(Deno.readTextFileSync(manifestPath));
+			const manifestData = JSON.parse(readFileSync(manifestPath, "utf8"));
 		const layer = manifestData.layers.find(
 			(l: { mediaType: string }) =>
 				l.mediaType === "application/vnd.ollama.image.model",
@@ -87,7 +90,7 @@ export function getOllamaModel(model: string, op?: OllamaOptions) {
 			layer.digest.replace("sha256:", "sha256-"),
 		);
 		try {
-			if (Deno.statSync(modelBlobPath).isFile) {
+			if (statSync(modelBlobPath).isFile()) {
 				return modelBlobPath;
 			} else {
 				console.error(`Model blob path is not a file for ${model}`);

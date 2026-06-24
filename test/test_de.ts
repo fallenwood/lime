@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pinyin } from "pinyin-pro";
@@ -11,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const file = path.join(__dirname, "de.txt");
 
-const test_text = Deno.readTextFileSync(file).split("");
+const test_text = readFileSync(file, "utf8").split("");
 const d: Record<string, { count: number; perfect: number; zis: string[] }> = {
 	ta: {
 		count: 0,

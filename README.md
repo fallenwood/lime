@@ -18,7 +18,7 @@ python 版本的见[python 分支](https://github.com/xushengfeng/lime/tree/pyth
 
 ## 运行
 
-需要有 deno.js 运行时，见[官网](https://deno.com/)
+需要有 Node.js 运行时（建议 Node.js 22+）和 pnpm。
 
 下载本项目，建议通过命令`git clone https://github.com/xushengfeng/lime`，后续可以获取更新，当然也可以下载压缩包
 
@@ -27,7 +27,7 @@ python 版本的见[python 分支](https://github.com/xushengfeng/lime/tree/pyth
 ### 安装依赖
 
 ```shell
-deno install
+pnpm install
 ```
 
 ### 下载模型
@@ -41,13 +41,13 @@ git clone https://www.modelscope.cn/unsloth/Qwen3-0.6B-GGUF.git
 ### 开启服务器
 
 ```shell
-deno serve -A --port 5000 server.ts
+pnpm serve -- --port 5000
 ```
 
 创建密钥，一定程度上防止被滥用或隐私泄露
 
 ```shell
-deno run -A key.ts
+pnpm key
 ```
 
 如果只是先看看这个项目的效果，可以跳转到下面的[说明](#前端)
@@ -68,7 +68,7 @@ patch:
 
 确保系统安装了 [curl](https://curl.se/download.html)，大部分系统如Windows（win10 1803+）、Linux、macOS 都自带了。
 
-创建密钥`deno run -A key.ts`，只需要创建一次，把输出的密钥改写在`llm_pinyin.lua`的`key`变量里面。
+创建密钥`pnpm key`，只需要创建一次，把输出的密钥改写在`llm_pinyin.lua`的`key`变量里面。
 
 开启服务器，切换到 llm 拼音输入法即可使用。
 
@@ -151,7 +151,7 @@ curl --request POST \
 
 ## 测试
 
-用deno运行`test/test_text.ts`，将会按照输入较长句子的拼音，然后去统计其索引、按键数、提交数量等记录下来，还提供了一个计算的交互方式，根据按键速度（kpm）等计算理论上的打字速度（cpm）等数据。
+用`pnpm exec tsx test/test_text.ts`运行统计脚本，将会按照输入较长句子的拼音，然后去统计其索引、按键数、提交数量等记录下来，还提供了一个计算的交互方式，根据按键速度（kpm）等计算理论上的打字速度（cpm）等数据。
 
 ## 统计
 
@@ -167,7 +167,7 @@ curl --request POST \
 
 ## 前端
 
-执行`deno run install_interface`和`deno run build_interface`
+执行`pnpm install_interface`和`pnpm build_interface`
 
 重启服务器
 

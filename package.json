@@ -1,14 +1,26 @@
 {
+    "type": "module",
     "scripts": {
-        "install_interface": "cd interface && deno install",
-        "build_interface": "cd interface && deno run build"
+        "serve": "tsx server.ts",
+        "key": "tsx key.ts",
+        "preload_word": "tsx userword/preload_word.ts",
+        "test": "tsx --test test/test.ts test/test_sentence.ts test/test_user_word.ts key_map/pinyin/test/*.ts utils/test/*.ts",
+        "test_text": "tsx test/test_text.ts",
+        "test_de": "tsx test/test_de.ts",
+        "typecheck": "tsc --noEmit",
+        "install_interface": "pnpm --dir interface install",
+        "build_interface": "pnpm --dir interface build"
     },
     "dependencies": {
+        "@hono/node-server": "^1.19.7",
         "hono": "^4.11.1",
-        "node-llama-cpp": "^3.14.5",
-        "pinyin-pro": "^3.27.0"
+        "node-llama-cpp": "^3.14.5"
     },
     "devDependencies": {
-        "@types/node": "^25.0.2"
+        "@types/async-retry": "^1.4.9",
+        "@types/node": "^25.0.2",
+        "pinyin-pro": "^3.27.0",
+        "tsx": "^4.20.6",
+        "typescript": "^5.9.3"
     }
 }

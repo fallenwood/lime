@@ -1,4 +1,5 @@
-import { assert } from "@std/assert";
+import { ok } from "node:assert/strict";
+import { test } from "node:test";
 import { pinyin } from "pinyin-pro";
 import { load_pinyin } from "../key_map/pinyin/gen_zi_pinyin.ts";
 import { keys_to_pinyin } from "../key_map/pinyin/keys_to_pinyin.ts";
@@ -43,18 +44,18 @@ async function test_text_offset(test_text: string[]) {
 	console.log("偏移", offset, ttt, ttt / test_text.length);
 }
 
-Deno.test("test text offset", async () => {
+test("test text offset", async () => {
 	const seg = new Intl.Segmenter("zh-Hans", { granularity: "word" });
 
 	const l = Array.from(seg.segment("聪明的输入法")).map((v) => v.segment);
 	await test_text_offset(l);
 });
 
-Deno.test("test text unnormal", async () => {
+test("test text unnormal", async () => {
 	const c = await single_ci(keys_to_pinyin("ku"));
 	console.log(
 		model.tokenizer("堀"),
 		model.tokenizer("堀").map((v) => model.detokenize([v])),
 	);
-	assert(c.candidates.find((v) => v.word === "堀"));
+	ok(c.candidates.find((v) => v.word === "堀"));
 });

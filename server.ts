@@ -1,7 +1,12 @@
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
-import { serveStatic } from "hono/deno";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { verifyKey } from "./key.ts";
@@ -10,7 +15,8 @@ import type { Config } from "./utils/config.d.ts";
 let userConfig: Config | undefined;
 
 try {
-	userConfig = (await import("./user_config.ts")).default;
+	const userConfigPath = "./user_config.ts";
+	userConfig = (await import(userConfigPath)).default;
 } catch {
 	console.log("使用默认配置");
 }
@@ -55,16 +61,13 @@ export const inputLog: {
 };
 
 try {
-	const words = Deno.readTextFileSync(config.userWordsPath)
+	const words = readFileSync(config.userWordsPath, "utf8")
 		.split("\n")
 		.filter((w) => w.trim());
-	const textEncoder = new TextEncoder();
 	for (const [i, w] of words.entries()) {
 		addUserWord(w);
-		Deno.stdout.writeSync(
-			textEncoder.encode(
-				`加载用户词 ${(((i + 1) / words.length) * 100).toFixed(2)}%\r`,
-			),
+		process.stdout.write(
+			`加载用户词 ${(((i + 1) / words.length) * 100).toFixed(2)}%\r`,
 		);
 	}
 	console.log(`\n加载用户词完成，数量 ${words.length}`);
@@ -187,10 +190,10 @@ api.post("/learntext", async (c) => {
 });
 
 try {
-	Deno.statSync("./interface/dist");
+	statSync("./interface/dist");
 } catch {
 	console.log(
-		"没有构建前端，一些服务器页面可能不显示（不影响输入法），如果需要，运行：\ndeno run install_interface\ndeno run build_interface\n然后重启服务器",
+		"没有构建前端，一些服务器页面可能不显示（不影响输入法），如果需要，运行：\npnpm install_interface\npnpm build_interface\n然后重启服务器",
 	);
 }
 
@@ -212,5 +215,17 @@ app.post("/candidates", (c) => {
 app.post("/commit", (c) => {
 	return api.fetch(c.req.raw);
 });
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	const { values } = parseArgs({
+		args: process.argv.slice(2),
+		options: {
+			port: { type: "string", short: "p" },
+		},
+	});
+	const port = Number(values.port ?? process.env.PORT ?? 5000);
+	serve({ fetch: app.fetch, port });
+	console.log(`服务器已启动：http://127.0.0.1:${port}`);
+}
 
 export default app;
