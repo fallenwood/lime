@@ -52,6 +52,33 @@ pnpm serve
 pnpm serve -- --pipe lime-dev
 ```
 
+也可以运行 NativeAOT 友好的 C# 服务器。它使用同一个命名管道 JSON 行协议，因此现有 Rime Lua 客户端不需要修改：
+
+```shell
+dotnet run --project csharp/Lime.Native -- --pipe lime
+```
+
+如果要用 ONNX Runtime GenAI 取代 TypeScript 版本的 `node-llama-cpp` 后端，传入已导出的 ONNX Runtime GenAI 模型目录：
+
+```shell
+dotnet run --project csharp/Lime.Native -- --engine onnx --model path\to\onnx-genai-model --pipe lime
+```
+
+也可以使用环境变量：
+
+```shell
+$env:LIME_ONNX_MODEL = "path\to\onnx-genai-model"
+dotnet run --project csharp/Lime.Native -- --pipe lime
+```
+
+发布本机可执行文件：
+
+```shell
+dotnet publish csharp/Lime.Native -c Release -r win-arm64 /p:PublishAot=true
+```
+
+C# 版本保留托管拼音字典候选引擎作为回退；提供 `--model` 或 `LIME_ONNX_MODEL` 后会使用 ONNX Runtime GenAI 引擎，通过本地 ONNX 模型生成上下文候选，不依赖 Node.js 或 `node-llama-cpp`。
+
 ## 作为输入法
 
 这里使用[rime](https://rime.im/)作为前端。
