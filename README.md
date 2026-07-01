@@ -9,10 +9,10 @@ llm 常用的文本生成方式是自回归，也就是预测下一个词（toke
 python 版本的见[python 分支](https://github.com/xushengfeng/lime/tree/python)，此版本用 ts 重写。
 
 > [!CAUTION]
-> 本项目的结构是运行一个 ai 服务器，输入法前端发送按键数据到服务器计算，然后返回你选择的文字\
+> 本项目的结构是运行一个 ai 服务器，输入法前端通过本地命名管道发送按键数据到服务器计算，然后返回你选择的文字\
 > 此过程目前为 明文 ，也就是未加密状态\
 > 你的按键输入可能包括了你大部分隐私\
-> 避免通信过程被其他软件截获，不要把服务器暴露在公网或局域网\
+> 默认服务器不开放 TCP HTTP 端口；如果你自己添加网络桥接，不要把它暴露在公网或局域网\
 > 不要把这个项目用于真实输入中，不要日用\
 > 如果你有适合 lua 和 ts 的方便又安全的加密方案，欢迎 issuse 或 pr
 
@@ -41,10 +41,16 @@ git clone https://www.modelscope.cn/unsloth/Qwen3-0.6B-GGUF.git
 ### 开启服务器
 
 ```shell
-pnpm serve -- --port 5000
+pnpm serve
 ```
 
-如果只是先看看这个项目的效果，可以跳转到下面的[说明](#前端)
+服务器只监听本地命名管道，不开放 TCP HTTP 端口。默认命名管道为 Windows 的 `\\.\pipe\lime`；在 Linux/macOS 上会使用 `/tmp/lime.sock`。
+
+可以通过参数或环境变量修改命名管道：
+
+```shell
+pnpm serve -- --pipe lime-dev
+```
 
 ## 作为输入法
 
@@ -60,9 +66,21 @@ patch:
 
 总而言之，在rime里面启用`llm`这个schema。
 
-确保系统安装了 [curl](https://curl.se/download.html)，大部分系统如Windows（win10 1803+）、Linux、macOS 都自带了。
+Lua 客户端只通过本地命名管道连接服务器。默认命名管道和服务器一致；如果服务器使用了自定义 `--pipe`，也需要给 Rime 进程设置同名的 `LIME_PIPE` 环境变量。命名管道请求由 Lua 的文件读写接口直接发送，不会为每次请求启动 `node`，也不依赖 FFI。
 
 开启服务器，切换到 llm 拼音输入法即可使用。
+
+调试 Rime Lua 客户端时，可以用 LuaJIT 运行 REPL：
+
+```shell
+luajit rime/repl.lua
+```
+
+也可以直接传入一次输入并退出：
+
+```shell
+luajit rime/repl.lua nihao
+```
 
 注意，并不能与你其他的 rime 输入法结合，只能作为一个新的 rime 输入法。
 
@@ -100,41 +118,13 @@ patch:
 
 ## 开发
 
-可以发送按键让引擎分析
+可以用 LuaJIT REPL 发送按键让引擎分析：
 
 ```shell
-curl --request POST \
-  --url http://127.0.0.1:5000/candidates \
-  --header 'content-type: application/json' \
-  --data '{
-  "keys": "nihaoshijie"
-}'
+luajit rime/repl.lua nihaoshijie
 ```
 
-返回
-
-```json
-{
-    "candidates": [
-        {
-            "pinyin": ["ni", "hao", "shi", "jie"],
-            "score": 1.1879427571978856e-13,
-            "word": "你好世界"
-        }
-    ]
-}
-```
-
-选好词后，发送，将作为上下文记录
-
-```shell
-curl --request POST \
-  --url http://127.0.0.1:5000/commit \
-  --header 'content-type: application/json' \
-  --data '{
-  "text": "你好世界"
-}'
-```
+REPL 会通过真实的 `llm_pinyin.lua` 客户端连接命名管道并打印候选。选词后的上下文提交由 Rime 的 `commit_notifier` 在实际输入时触发。
 
 ### 其他输入方案
 
@@ -146,7 +136,7 @@ curl --request POST \
 
 ## 统计
 
-服务器会尝试统计按键的速度（按照相邻请求来计算）、实际输入文字时间、查找候选的时间等，通过`/inputlog`可以获取，可以使用中位数等或者平均数计算你自己相关的打字数据。
+服务器会尝试统计按键的速度（按照相邻请求来计算）、实际输入文字时间、查找候选的时间等。默认不开放 HTTP 端口，需要调试时可以写本地脚本通过命名管道请求 `/api/inputlog`。
 
 ## 高级配置
 
@@ -158,10 +148,4 @@ curl --request POST \
 
 ## 前端
 
-执行`pnpm install_interface`和`pnpm build_interface`
-
-重启服务器
-
-访问 http://127.0.0.1:5000/demo.html 将有个模拟平时输入法界面的页面
-
-其他界面在 http://127.0.0.1:5000 可以导航，如上下文获取、输入统计计算等
+默认服务器不再开放 TCP HTTP 端口，因此旧的浏览器前端不会由 `server.ts` 对外提供。`interface` 仍可单独构建；如需浏览器 UI，需要额外的本地桥接层来访问命名管道。

@@ -1,11 +1,10 @@
-import { serve } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
-import { readFileSync, statSync } from "node:fs";
+import { createAdaptorServer } from "@hono/node-server";
+import { lstatSync, readFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import type { Config } from "./utils/config.d.ts";
@@ -29,6 +28,56 @@ function arrayLimtPush<T>(arr: T[], item: T, maxLen: number) {
 	for (let i = 0; i < arr.length - maxLen; i++) {
 		arr.shift();
 	}
+}
+
+const defaultNamedPipeName = "lime";
+const windowsNamedPipePrefix = "\\\\.\\pipe\\";
+
+function getNamedPipePath(pipe: string) {
+	const normalizedPipe = pipe.trim() || defaultNamedPipeName;
+	if (process.platform === "win32") {
+		if (normalizedPipe.startsWith(windowsNamedPipePrefix)) {
+			return normalizedPipe;
+		}
+		return `${windowsNamedPipePrefix}${normalizedPipe}`;
+	}
+	if (path.isAbsolute(normalizedPipe)) return normalizedPipe;
+	return path.join(
+		tmpdir(),
+		normalizedPipe.endsWith(".sock")
+			? normalizedPipe
+			: `${normalizedPipe}.sock`,
+	);
+}
+
+function removeStaleUnixSocket(socketPath: string) {
+	if (process.platform === "win32") return;
+	try {
+		const stats = lstatSync(socketPath);
+		if (!stats.isSocket()) {
+			throw new Error(`命名管道路径已存在且不是 socket：${socketPath}`);
+		}
+		unlinkSync(socketPath);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+		throw error;
+	}
+}
+
+function serveNamedPipe(pipe: string) {
+	const pipePath = getNamedPipePath(pipe);
+	removeStaleUnixSocket(pipePath);
+
+	const server = createAdaptorServer({ fetch: app.fetch });
+	server.on("error", (error) => {
+		console.error(`命名管道启动失败：${pipePath}`);
+		console.error(error);
+		process.exitCode = 1;
+	});
+	server.listen(pipePath, () => {
+		console.log(`命名管道已启动：${pipePath}`);
+	});
+	return server;
 }
 
 const inputLogMaxLen = 10 ** 5;
@@ -179,23 +228,6 @@ api.post("/learntext", async (c) => {
 	});
 });
 
-try {
-	statSync("./interface/dist");
-} catch {
-	console.log(
-		"没有构建前端，一些服务器页面可能不显示（不影响输入法），如果需要，运行：\npnpm install_interface\npnpm build_interface\n然后重启服务器",
-	);
-}
-
-app.use(
-	"*",
-	cors({
-		origin: "*",
-	}),
-);
-
-app.use("/*", serveStatic({ root: "./interface/dist" }));
-
 app.route("/api", api);
 
 app.post("/candidates", (c) => {
@@ -210,12 +242,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 	const { values } = parseArgs({
 		args: process.argv.slice(2),
 		options: {
-			port: { type: "string", short: "p" },
+			pipe: { type: "string" },
 		},
 	});
-	const port = Number(values.port ?? process.env.PORT ?? 5000);
-	serve({ fetch: app.fetch, port });
-	console.log(`服务器已启动：http://127.0.0.1:${port}`);
+	serveNamedPipe(String(values.pipe ?? process.env.LIME_PIPE ?? defaultNamedPipeName));
 }
 
 export default app;
