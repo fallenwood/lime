@@ -1,10 +1,7 @@
 local json = require("json")
 local fetch_text = require("fetch_text")
 
-local key = "你的密钥"
-
 local headers = {
-  Authorization = 'Bearer ' .. key,
   ['content-Type'] = 'application/json'
 }
 

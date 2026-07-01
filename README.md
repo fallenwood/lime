@@ -44,12 +44,6 @@ git clone https://www.modelscope.cn/unsloth/Qwen3-0.6B-GGUF.git
 pnpm serve -- --port 5000
 ```
 
-创建密钥，一定程度上防止被滥用或隐私泄露
-
-```shell
-pnpm key
-```
-
 如果只是先看看这个项目的效果，可以跳转到下面的[说明](#前端)
 
 ## 作为输入法
@@ -67,8 +61,6 @@ patch:
 总而言之，在rime里面启用`llm`这个schema。
 
 确保系统安装了 [curl](https://curl.se/download.html)，大部分系统如Windows（win10 1803+）、Linux、macOS 都自带了。
-
-创建密钥`pnpm key`，只需要创建一次，把输出的密钥改写在`llm_pinyin.lua`的`key`变量里面。
 
 开启服务器，切换到 llm 拼音输入法即可使用。
 
@@ -114,7 +106,6 @@ patch:
 curl --request POST \
   --url http://127.0.0.1:5000/candidates \
   --header 'content-type: application/json' \
-  --header 'Authorization: Bearer your key' \
   --data '{
   "keys": "nihaoshijie"
 }'
@@ -171,6 +162,6 @@ curl --request POST \
 
 重启服务器
 
-访问 http://127.0.0.1:5000/demo.html?passwd=你的密码 将有个模拟平时输入法界面的页面
+访问 http://127.0.0.1:5000/demo.html 将有个模拟平时输入法界面的页面
 
 其他界面在 http://127.0.0.1:5000 可以导航，如上下文获取、输入统计计算等

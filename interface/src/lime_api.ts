@@ -2,19 +2,9 @@ import type { Result, UserData } from "../../main.ts";
 import type { inputLog } from "../../server.ts";
 
 export class lime {
-	constructor() {
-		const p = this.getPassword();
-		if (!p) {
-			alert("请在 URL 中通过参数 passwd 指定访问密码，例如 ?passwd=你的密码");
-		}
-	}
-	private getPassword(): string {
-		return new URLSearchParams(location.search).get("passwd") || "";
-	}
 	private getHeader() {
 		return new Headers({
 			"Content-Type": "application/json",
-			Authorization: `Bearer ${this.getPassword()}`,
 		});
 	}
 	private getServerUrl(): string {

@@ -2,7 +2,6 @@
     "type": "module",
     "scripts": {
         "serve": "tsx server.ts",
-        "key": "tsx key.ts",
         "preload_word": "tsx userword/preload_word.ts",
         "test": "tsx --test test/test.ts test/test_sentence.ts test/test_user_word.ts key_map/pinyin/test/*.ts utils/test/*.ts",
         "test_text": "tsx test/test_text.ts",

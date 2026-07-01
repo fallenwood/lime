@@ -5,11 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { Hono } from "hono";
-import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
-import { verifyKey } from "./key.ts";
 import type { Config } from "./utils/config.d.ts";
 
 let userConfig: Config | undefined;
@@ -77,14 +75,6 @@ try {
 
 const app = new Hono();
 const api = new Hono();
-api.use(
-	"/*",
-	bearerAuth({
-		verifyToken: (t) => {
-			return verifyKey(t);
-		},
-	}),
-);
 
 api.use("*", logger());
 

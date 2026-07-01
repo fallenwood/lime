@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { get_dict } from "../rime_dict.ts";
+import {writeFileSync } from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,7 +36,7 @@ export function load_pinyin() {
 		d[i] = unionSet(l, b[i]);
 	}
 
-	return {
+	const r = {
 		trans: (ci: string) => {
 			const l: string[][] = [];
 			for (const i of ci) {
@@ -49,4 +50,8 @@ export function load_pinyin() {
 		},
 		allSymbol: unionSet(Object.keys(a), Object.keys(b)),
 	};
+
+	writeFileSync(path.join(__dirname, "../../assets/pinyin/zi_pinyin.json"), JSON.stringify(r, null, 2), "utf8");
+
+	return r;
 }

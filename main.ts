@@ -172,6 +172,11 @@ export class LIME {
 
 		const { trans, allSymbol } = ziInd;
 
+		console.log(JSON.stringify({ allSymbol: Array.from(allSymbol).slice(0, 10) }, null, 2));
+		console.log(JSON.stringify(trans));
+
+		console.log(JSON.stringify(afterReSort));
+
 		let max = 0;
 		for (const token_id of model.iterateAllTokens()) {
 			max = Math.max(max, token_id);
