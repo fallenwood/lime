@@ -1,31 +1,16 @@
 local json = require("json")
 local fetch_text = require("fetch_text")
 
-local headers = {
-  ['content-Type'] = 'application/json'
-}
-
 local named_pipe = os.getenv("LIME_PIPE")
 if not named_pipe or named_pipe == "" then
-  if package.config:sub(1, 1) == "\\" then
-    named_pipe = "\\\\.\\pipe\\lime"
-  else
-    named_pipe = "/tmp/lime.sock"
-  end
+  named_pipe = "\\\\.\\pipe\\lime"
 end
 
-local function clone_options(op)
-  local next_op = {}
-  for k, v in pairs(op or {}) do
-    next_op[k] = v
-  end
-  return next_op
-end
-
-local function request(path, op)
-  local pipe_op = clone_options(op)
-  pipe_op.pipe = named_pipe
-  return fetch_text(path, pipe_op)
+local function request(action, body)
+  return fetch_text(action, {
+    pipe = named_pipe,
+    source = json.encode(body or {})
+  })
 end
 
 local translator = {}
@@ -36,14 +21,10 @@ function translator.init(env)
   env.notifier = env.engine.context.commit_notifier:connect(function(ctx)
     local commit = ctx.commit_history:back()
     if commit then
-      request("/commit", {
-        headers = headers,
-        method = "POST",
-        source = json.encode({
-          text = commit.text,
-          update = true,
-          new = true
-        })
+      request("commit", {
+        text = commit.text,
+        update = true,
+        new = true
       })
     end
   end)
@@ -65,25 +46,17 @@ function translator.func(input, seg, env)
   if preedit ~= '' then
     local had_select_text = string.sub(preedit, 0, string.len(preedit) - (seg._end - seg.start))
     if had_select_text ~= '' then
-      request("/commit", {
-        headers = headers,
-        method = "POST",
-        source = json.encode({
-          text = had_select_text,
-          update = true,
-          new = false
-        })
+      request("commit", {
+        text = had_select_text,
+        update = true,
+        new = false
       })
     end
   end
 
   local qp = input
-  local code, reply = request("/candidates", {
-    headers = headers,
-    method = "POST",
-    source = json.encode({
-      keys = qp
-    })
+  local code, reply = request("candidates", {
+    keys = qp
   })
   local _, j = pcall(json.decode, reply)
   if code == 200 and _ then

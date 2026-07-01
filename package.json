@@ -11,8 +11,6 @@
         "build_interface": "pnpm --dir interface build"
     },
     "dependencies": {
-        "@hono/node-server": "^1.19.7",
-        "hono": "^4.11.1",
         "node-llama-cpp": "^3.14.5"
     },
     "devDependencies": {

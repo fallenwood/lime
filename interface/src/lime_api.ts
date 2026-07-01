@@ -1,56 +1,24 @@
 import type { Result, UserData } from "../../main.ts";
 import type { inputLog } from "../../server.ts";
 
+function unavailable(): never {
+	throw new Error("服务器已移除 HTTP 接口；浏览器前端需要单独的命名管道桥接层");
+}
+
 export class lime {
-	private getHeader() {
-		return new Headers({
-			"Content-Type": "application/json",
-		});
+	async candidates(_keys: string): Promise<Result> {
+		unavailable();
 	}
-	private getServerUrl(): string {
-		const baseUrl = new URL(
-			new URLSearchParams(location.search).get("server") || location.origin,
-		);
-		baseUrl.pathname = "/api";
-		return baseUrl.toString();
+	async commit(_word: string, _newT: boolean): Promise<void> {
+		unavailable();
 	}
-	async candidates(keys: string) {
-		const data = fetch(`${this.getServerUrl()}/candidates`, {
-			method: "POST",
-			headers: this.getHeader(),
-			body: JSON.stringify({ keys: keys }),
-		});
-		const res = await (await data).json();
-		return res as Result;
+	async userData(): Promise<UserData> {
+		unavailable();
 	}
-	async commit(word: string, newT: boolean) {
-		await fetch(`${this.getServerUrl()}/commit`, {
-			method: "POST",
-			headers: this.getHeader(),
-			body: JSON.stringify({ text: word, new: newT }),
-		});
+	async inputlog(): Promise<typeof inputLog> {
+		unavailable();
 	}
-	async userData() {
-		const data = await fetch(`${this.getServerUrl()}/userdata`, {
-			method: "GET",
-			headers: this.getHeader(),
-		});
-		const res = await data.json();
-		return res as UserData;
-	}
-	async inputlog() {
-		const data = await fetch(`${this.getServerUrl()}/inputlog`, {
-			method: "GET",
-			headers: this.getHeader(),
-		});
-		const res = await data.json();
-		return res as typeof inputLog;
-	}
-	async pushText(text: string) {
-		await fetch(`${this.getServerUrl()}/learntext`, {
-			method: "POST",
-			headers: this.getHeader(),
-			body: text,
-		});
+	async pushText(_text: string): Promise<void> {
+		unavailable();
 	}
 }

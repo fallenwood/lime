@@ -1,12 +1,8 @@
-import { createAdaptorServer } from "@hono/node-server";
-import { lstatSync, readFileSync, unlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
+import { createServer as createNamedPipeServer, type Socket } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { Hono } from "hono";
-import { HTTPException } from "hono/http-exception";
-import { logger } from "hono/logger";
 import type { Config } from "./utils/config.d.ts";
 
 let userConfig: Config | undefined;
@@ -34,41 +30,23 @@ const defaultNamedPipeName = "lime";
 const windowsNamedPipePrefix = "\\\\.\\pipe\\";
 
 function getNamedPipePath(pipe: string) {
-	const normalizedPipe = pipe.trim() || defaultNamedPipeName;
-	if (process.platform === "win32") {
-		if (normalizedPipe.startsWith(windowsNamedPipePrefix)) {
-			return normalizedPipe;
-		}
-		return `${windowsNamedPipePrefix}${normalizedPipe}`;
+	if (process.platform !== "win32") {
+		throw new Error("当前仅支持 Windows 命名管道");
 	}
-	if (path.isAbsolute(normalizedPipe)) return normalizedPipe;
-	return path.join(
-		tmpdir(),
-		normalizedPipe.endsWith(".sock")
-			? normalizedPipe
-			: `${normalizedPipe}.sock`,
-	);
-}
 
-function removeStaleUnixSocket(socketPath: string) {
-	if (process.platform === "win32") return;
-	try {
-		const stats = lstatSync(socketPath);
-		if (!stats.isSocket()) {
-			throw new Error(`命名管道路径已存在且不是 socket：${socketPath}`);
-		}
-		unlinkSync(socketPath);
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-		throw error;
+	const normalizedPipe = pipe.trim() || defaultNamedPipeName;
+	if (normalizedPipe.startsWith(windowsNamedPipePrefix)) {
+		return normalizedPipe;
 	}
+	return `${windowsNamedPipePrefix}${normalizedPipe}`;
 }
 
 function serveNamedPipe(pipe: string) {
 	const pipePath = getNamedPipePath(pipe);
-	removeStaleUnixSocket(pipePath);
 
-	const server = createAdaptorServer({ fetch: app.fetch });
+	const server = createNamedPipeServer((socket) => {
+		handleRpcSocket(socket);
+	});
 	server.on("error", (error) => {
 		console.error(`命名管道启动失败：${pipePath}`);
 		console.error(error);
@@ -78,6 +56,75 @@ function serveNamedPipe(pipe: string) {
 		console.log(`命名管道已启动：${pipePath}`);
 	});
 	return server;
+}
+
+type RpcRequest = {
+	action?: string;
+	body?: unknown;
+};
+
+type RpcResponse = {
+	status: number;
+	body: string;
+};
+
+class RpcError extends Error {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.status = status;
+	}
+}
+
+function rpcJson(status: number, value: unknown): RpcResponse {
+	return {
+		status,
+		body: typeof value === "string" ? value : JSON.stringify(value),
+	};
+}
+
+function parseRpcBody<T>(body: unknown, fallback: T): T {
+	if (typeof body !== "string") return (body ?? fallback) as T;
+	if (!body) return fallback;
+	return JSON.parse(body) as T;
+}
+
+function handleRpcSocket(socket: Socket) {
+	let buffer = "";
+	let handled = false;
+
+	socket.setEncoding("utf8");
+	socket.on("data", (chunk) => {
+		if (handled) return;
+		buffer += chunk;
+		const newline = buffer.indexOf("\n");
+		if (newline === -1) return;
+
+		handled = true;
+		socket.pause();
+		void respondToRpcLine(socket, buffer.slice(0, newline));
+	});
+	socket.on("error", (error) => {
+		console.error("命名管道连接错误:", error);
+	});
+}
+
+async function respondToRpcLine(socket: Socket, line: string) {
+	let response: RpcResponse;
+	try {
+		const request = JSON.parse(line) as RpcRequest;
+		response = await handleRpcRequest(request);
+	} catch (error) {
+		if (error instanceof RpcError) {
+			response = rpcJson(error.status, { message: error.message });
+		} else {
+			console.error("处理命名管道请求失败:", error);
+			response = rpcJson(500, { message: "命名管道请求处理失败" });
+		}
+	}
+
+	socket.end(`${JSON.stringify(response)}\n`);
 }
 
 const inputLogMaxLen = 10 ** 5;
@@ -122,14 +169,9 @@ try {
 	//
 }
 
-const app = new Hono();
-const api = new Hono();
-
-api.use("*", logger());
-
-api.post("/candidates", async (c) => {
-	const body = await c.req.json<{ keys?: string }>();
-	const keys = body.keys || "";
+async function handleCandidates(body: unknown) {
+	const data = parseRpcBody<{ keys?: string }>(body, {});
+	const keys = data.keys || "";
 
 	console.log(keys);
 	const time = Date.now();
@@ -156,87 +198,87 @@ api.post("/candidates", async (c) => {
 			candidates: result.candidates.map((c) => c.word),
 		};
 
-	return c.json(result);
-});
+	return result;
+}
 
-api.post("/commit", async (c) => {
+async function handleCommit(body: unknown) {
+	let data: { text?: string; new?: boolean; update?: boolean };
 	try {
-		const body = await c.req.json();
-		const text = body.text || "";
-		const isNew = body.new ?? true;
-		const shouldUpdate = body.update ?? false;
-
-		if (!text) {
-			throw new HTTPException(400, { message: "未提供文本内容" });
-		}
-
-		const newT = await commit(text, shouldUpdate, isNew);
-
-		if (isNew) {
-			if (inputLog.lastZiTime !== null)
-				arrayLimtPush(
-					inputLog.ziDeltaTimes,
-					(Date.now() - inputLog.lastZiTime) / text.length,
-					inputLogMaxLen,
-				);
-			inputLog.lastZiTime = null;
-			inputLog.lastKeyTime = null;
-			inputLog.ziCount += text.length;
-			inputLog.history += text;
-		}
-		{
-			const offset = inputLog.lastCandidates.candidates.indexOf(newT ?? "");
-			if (offset !== -1 && inputLog.lastCandidates.time !== 0) {
-				const time = Date.now();
-				const ofts = inputLog.offsetTimes[offset] || [];
-				arrayLimtPush(
-					ofts,
-					time - inputLog.lastCandidates.time,
-					inputLogMaxLen,
-				);
-				inputLog.offsetTimes[offset] = ofts;
-			}
-			inputLog.lastCandidates = {
-				time: 0,
-				candidates: [],
-			};
-		}
-
-		return c.json({
-			message: "文本提交成功",
-		});
+		data = parseRpcBody(body, {});
 	} catch (error) {
-		if (error instanceof HTTPException) throw error;
 		console.error("提交文本失败:", error);
-		throw new HTTPException(400, { message: "请求数据格式错误" });
+		throw new RpcError(400, "请求数据格式错误");
 	}
-});
 
-api.get("/userdata", (c) => {
-	return c.json(getUserData());
-});
+	const text = data.text || "";
+	const isNew = data.new ?? true;
+	const shouldUpdate = data.update ?? false;
 
-api.get("/inputlog", (c) => {
-	return c.json(inputLog);
-});
+	if (!text) {
+		throw new RpcError(400, "未提供文本内容");
+	}
 
-api.post("/learntext", async (c) => {
-	const body = await c.req.text();
-	await commit(body, true, true);
-	return c.json({
+	const newT = await commit(text, shouldUpdate, isNew);
+
+	if (isNew) {
+		if (inputLog.lastZiTime !== null)
+			arrayLimtPush(
+				inputLog.ziDeltaTimes,
+				(Date.now() - inputLog.lastZiTime) / text.length,
+				inputLogMaxLen,
+			);
+		inputLog.lastZiTime = null;
+		inputLog.lastKeyTime = null;
+		inputLog.ziCount += text.length;
+		inputLog.history += text;
+	}
+	{
+		const offset = inputLog.lastCandidates.candidates.indexOf(newT ?? "");
+		if (offset !== -1 && inputLog.lastCandidates.time !== 0) {
+			const time = Date.now();
+			const ofts = inputLog.offsetTimes[offset] || [];
+			arrayLimtPush(
+				ofts,
+				time - inputLog.lastCandidates.time,
+				inputLogMaxLen,
+			);
+			inputLog.offsetTimes[offset] = ofts;
+		}
+		inputLog.lastCandidates = {
+			time: 0,
+			candidates: [],
+		};
+	}
+
+	return {
 		message: "文本提交成功",
-	});
-});
+	};
+}
 
-app.route("/api", api);
+async function handleLearnText(body: unknown) {
+	const text = typeof body === "string" ? body : String(body ?? "");
+	await commit(text, true, true);
+	return {
+		message: "文本提交成功",
+	};
+}
 
-app.post("/candidates", (c) => {
-	return api.fetch(c.req.raw);
-});
-
-app.post("/commit", (c) => {
-	return api.fetch(c.req.raw);
-});
+async function handleRpcRequest(request: RpcRequest) {
+	switch (request.action) {
+		case "candidates":
+			return rpcJson(200, await handleCandidates(request.body));
+		case "commit":
+			return rpcJson(200, await handleCommit(request.body));
+		case "userdata":
+			return rpcJson(200, getUserData());
+		case "inputlog":
+			return rpcJson(200, inputLog);
+		case "learntext":
+			return rpcJson(200, await handleLearnText(request.body));
+		default:
+			throw new RpcError(404, `未知命名管道操作：${String(request.action)}`);
+	}
+}
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	const { values } = parseArgs({
@@ -247,5 +289,3 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 	});
 	serveNamedPipe(String(values.pipe ?? process.env.LIME_PIPE ?? defaultNamedPipeName));
 }
-
-export default app;
